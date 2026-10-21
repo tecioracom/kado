@@ -36,7 +36,7 @@ export type Project = {
   year: number;
   /** 一覧に出る1行。ヒーローの1件目には出さない。 */
   lead?: string;
-  /** 写真の下に残る面（samples.css の .kado-shot-N）。 */
+  /** 写真の下に残る面（site.css の .kado-shot-N）。 */
   tone: string;
   /** 事例の写真（public/samples/ からの拡張子なしの道）。 */
   photo: string;
