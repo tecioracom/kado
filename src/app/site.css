@@ -1,0 +1,286 @@
+/* ============================================================================
+ * サンプルサイト（/[locale]/samples 配下）専用のスコープ。
+ * `src/app/[locale]/samples/layout.tsx` からのみ import する。
+ *
+ * ■ 2階建てにする
+ *   `.sample-shell`  … ハブ・画面設計ページ・8本の実装、全部に掛かる外側。
+ *                      変数の器と color-scheme だけを持つ。
+ *   `.sample-<slug>` … 1本ぶんの配色・書体。**Teciora のトークンを参照しない。**
+ *                      8本が「同じ人が作った1サイト」に見えないための線。
+ *
+ * ■ ここで絶対に宣言しないもの
+ *   overflow / transform / filter / backdrop-filter / contain / will-change。
+ *   1つでも入ると、子孫の position: sticky が**無言で**効かなくなる
+ *   （管理画面のサイドバーと予約の集計パネルが sticky）。検査 [10] が見ている。
+ *
+ * ■ 新しい1本を足すときにやること（他の7本の担当へ）
+ *   1. この下に `.sample-<slug>` を1ブロック足す。
+ *      必ず `--focus-ring` を自分の色で上書きすること。上書きを忘れると
+ *      Teciora のシアン（#00D1FF）が漏れて、配色を分けた意味が消える。
+ *   2. 見出しの `font-family: inherit` を書く。globals.css の
+ *      `h1,h2,h3,h4 { @apply font-display }` を打ち消すため。
+ *      samples.css は @layer に入っていないので、レイヤ付きの base より強い。
+ *   3. 和文の大きな見出しは **マイナス字間**（h1 -0.02em / h2 -0.01em）。
+ *      欧文のオーバーラインは正のまま（別物なので触らない）。
+ *   4. 幅の指定に `ch` を使わない。「0」の字幅なので和文では効かない
+ *      （同じ 62ch が書体によって 39 字にも 31 字にもなる）。`em` を使う。
+ * ==========================================================================*/
+
+.sample-shell {
+  /*
+   * 端末のダークモードで、UA が描く部品だけが黒くなる事故を止める。
+   * 8本とも明るい配色しか持たず `dark:` は1つも書いていない。
+   * 宣言が無いと <select>・チェックボックス・スクロールバーなど
+   * **UA が描くものだけ**が OS の設定に従って暗転し、配色が混ざる。
+   * ダークモードを作る宣言ではなく、作っていないことを宣言するための1行。
+   */
+  color-scheme: light;
+
+  /* 各サイトのヘッダー高。ページ内アンカーの scroll-margin-top が参照する。 */
+  --site-header-h: 56px;
+  --site-anchor-offset: calc(var(--site-header-h) + 16px);
+}
+
+@media (min-width: 768px) {
+  .sample-shell {
+    --site-header-h: 64px;
+  }
+}
+
+
+.sample-shell [id] {
+  scroll-margin-top: var(--site-anchor-offset);
+}
+
+/* ------------------------------------------------------------------
+ * ⚠ 濃い面の上の文字色について（8本共通の落とし穴）
+ * ------------------------------------------------------------------
+ * **`text-[var(--cream)]/80` は効かない。**
+ * Tailwind は不透明度つきの任意値を `rgb(var(--cream) / 0.8)` に展開する。
+ * 変数の中身が `#F3F0E8` のような色表記だと、この宣言は**無効**になって
+ * 丸ごと捨てられ、文字色は**継承した色**になる。
+ * `.sample-<slug> { color: var(--ink) }` を継承するので、
+ * **濃い面の上に濃い文字**が出る（ヒーローの和文が消える、で実際に踏んだ）。
+ * しかも親がたまたま明るい色を指定している場所では正しく見えるので、
+ * 画面によって出たり出なかったりする。
+ *
+ * 濃い面に載せる文字は、**不透明度を焼き込んだ変数**を使うこと。
+ * 各サイトが `--on-dark-*` を自分の地色で定義する（下の .sample-nagi 参照）。
+ * Teciora 自身の面（SiteFooter・アウトロ帯）は本体のトークンなので
+ * `text-white/80` のままでよい（`white` は実在のパレット色）。
+ * 検査 [S4] が `色-[var(--…)]/数字` の並びを禁止している。
+ * ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------
+ * 入力欄のフォーカスリング（8本共通）
+ * ------------------------------------------------------------------
+ * @tailwindcss/forms は input / select / textarea の :focus に
+ * `outline: 2px solid transparent` を当てる（リングは box-shadow で描く前提）。
+ * サンプル側はその既定リング（Tailwind の青）を消しているので、
+ * globals.css の `:where(...)` 規則（詳細度 0）は forms の規則に勝てず、
+ * **入力欄だけフォーカスリングが存在しない**状態になる。
+ * 枠線の色替えだけでは、フォーカス位置が 1px の色差でしか分からない。
+ * samples 配下に限って、各サイトの --focus-ring で描き直す。
+ * ------------------------------------------------------------------ */
+.sample-body :is(input, select, textarea, button, a, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus-ring, #173c3b);
+  outline-offset: 2px;
+}
+
+/* 濃い面（管理画面のサイドバーなど）の上では、リングを明るい側に振る。 */
+.sample-body .site-on-dark :is(a, button, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus-ring-dark, #ffffff);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------
+ * 孤立行（行末に1〜2文字だけ残る行）について
+ * ------------------------------------------------------------------
+ * `text-wrap: pretty` を当てて実測したが、和文では行の割れ方が1文字も
+ * 変わらなかった。効かない指定を「対策した」体で残さない。孤立行は
+ * 行長（max-w の和字数）と文の長さの組み合わせで決まるので、直すときは
+ * そのどちらかを動かすこと。
+ * ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------
+ * 横スクロールする器（表・カレンダー）の共通クラス。
+ * overflow は **この要素自身** に付く。祖先には絶対に付けない。
+ * ------------------------------------------------------------------ */
+.sample-body .site-scroll-x {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ------------------------------------------------------------------
+ * 動きを減らす設定のときは、ループ動画を出さない（`SiteVideo`）。
+ * Figma の `NAGI / Motion & interaction guide` の指定
+ * （「動きを減らす設定ではズームと移動を無効化」）。
+ *
+ * 歯止めは2つある。1つめは `<source media="(prefers-reduced-motion:
+ * no-preference)">` で、**資源選択の段階で候補が0本になる**ので
+ * 1バイトも取りに行かない。ここはその2つめで、`media` 属性を無視する
+ * 実装が仮にあっても動くものを出さないための保険である。
+ *
+ * **動画を消してもヒーローは空にならない。**ポスターは器の
+ * `background-image` にも置いてあり（`SiteVideo` のインラインスタイル）、
+ * 同じ URL なので取得は1回で済む。
+ * ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .sample-body .site-video-motion {
+    display: none;
+  }
+}
+
+
+
+/* ============================================================================
+ * KADO — 東京の建築設計事務所（角建築設計室）
+ *
+ * 引き算の版面。**角丸ゼロ・装飾的な影ゼロ・罫は髪の毛ほど。**
+ * 色は紙色と黒に、目印の朱色ひとつだけ。書き出しから拾った実測値:
+ *   紙 #FAFBF8 / 黒 #151515 / 朱 #E84C2C
+ *
+ * 朱色は**面のときだけ** #E84C2C を使う。紙の上の文字に使うと 3.67:1 で
+ * AA に届かないので、文字用に暗いほう（--accent-ink 5.3:1）を別に持つ。
+ * 朱の面に載せる文字は**黒**（5.5:1）。書き出しの帯もそうなっている。
+ * ==========================================================================*/
+.sample-kado {
+  --focus-ring: #151515;
+  --focus-ring-dark: #fafbf8;
+
+  --ink: #151515; /* 対 --cream 16.4:1 */
+  --sub: #64645f; /* 対 --cream 5.75:1 */
+  --line: #e3e2dc; /* 髪の毛ほどの罫 */
+  --line-strong: #c9c8c1;
+  --paper: #ffffff;
+  --cream: #fafbf8; /* 紙色（地） */
+  --alert: #a5321a; /* 対 --cream 6.6:1 */
+
+  /* 共有部品（BTN_PRIMARY など）が参照する主色。KADO は黒。 */
+  --green: #151515;
+  --green-deep: #000000;
+  --soft: #f1efe8;
+  --soft-ink: #151515;
+
+  /* 目印の朱色。面に使う色と、文字に使う色を分ける。 */
+  --accent: #e84c2c;
+  --accent-ink: #c0390f;
+
+  /* 角丸ゼロ。入力欄・ボタンが参照する。 */
+  --field-radius: 0px;
+
+  /* 朱の面の上（文字は黒）／黒い面の上（文字は紙色）。焼き込み済み。 */
+  --on-dark-strong: rgba(250, 251, 248, 0.94);
+  --on-dark-soft: rgba(250, 251, 248, 0.82);
+  --on-dark-faint: rgba(250, 251, 248, 0.72);
+  --on-dark-line: rgba(250, 251, 248, 0.3);
+  --on-dark-line-strong: rgba(250, 251, 248, 0.58);
+  --on-dark-fill: rgba(250, 251, 248, 0.12);
+
+  /* 朱の面の上の黒文字。こちらも不透明度を焼き込む。 */
+  --on-accent-strong: rgba(21, 21, 21, 0.92);
+  --on-accent-soft: rgba(21, 21, 21, 0.78);
+  --on-accent-line: rgba(21, 21, 21, 0.28);
+
+  font-family: var(--font-noto-sans-jp), 'Hiragino Sans', 'Noto Sans JP',
+    'Yu Gothic', sans-serif;
+  color: var(--ink);
+}
+
+.sample-kado h1,
+.sample-kado h2,
+.sample-kado h3,
+.sample-kado h4,
+.sample-kado h5 {
+  font-family: inherit;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.sample-kado h1 {
+  letter-spacing: -0.02em;
+}
+.sample-kado h2 {
+  letter-spacing: -0.01em;
+}
+
+/*
+ * 欧文だけの文字列に当てる（KADO / Selected projects / Talk to us.）。
+ * DM Sans は和文を持たないので、**和欧混植には当てない**。
+ */
+.sample-kado .kado-display {
+  font-family: var(--font-kado-sans), 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+}
+.sample-kado .kado-label {
+  font-family: var(--font-kado-sans), 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+}
+
+/*
+ * 画面いっぱいの大きなワードマーク（KADO / Talk to us.）の寸法。
+ *
+ * ⚠ **vw で測らない。**vw は「文字スケールだけを 200% にする」設定で
+ *   器と一緒に大きくならない。文字だけが 2 倍になった環境では、
+ *   4文字が器の幅を超えて **ページ全体に横スクロール**が出る
+ *   （幅 240px / 文字スケール 200% で再現した）。
+ *   cqw は**器の幅に対する比**なので、どの倍率でも必ず収まる。
+ *   33cqw × 4文字 ≒ 器の 99%、26cqw × 4文字 ≒ 78%。
+ *
+ *   `container-type: inline-size` は containment を伴うが、この器の中に
+ *   position: sticky の要素は入っていない（sticky なヘッダーは器の**外**の
+ *   兄弟）。sticky を殺さないことを確認したうえで使っている。
+ *   vw の行は cqw を解釈しない古い環境への予備（宣言は上書きされる）。
+ */
+.sample-kado .kado-fit {
+  container-type: inline-size;
+}
+.sample-kado .kado-fit-hero {
+  font-size: 37vw;
+  font-size: 37cqw; /* 4文字で器の 96%（実測） */
+}
+.sample-kado .kado-fit-cta {
+  font-size: 22vw;
+  font-size: 22cqw; /* 器の 94%（実測） */
+}
+@media (min-width: 768px) {
+  .sample-kado .kado-fit-cta {
+    font-size: 13vw;
+    font-size: 13cqw; /* 器の 55%（実測）。書き出しと同じ割り */
+  }
+}
+
+@media (min-width: 1024px) {
+  .sample-kado .kado-fit-hero {
+    font-size: 30vw;
+    font-size: 30cqw; /* 4文字で器の 79%（実測）。書き出しと同じ割り */
+  }
+}
+
+
+/*
+ * 中庭住宅・書店・アトリエの地（2026-09-18 に写真を入れた）。
+ * `public/samples/kado/` の写真がこの上に `<img>` で乗る（`SitePhoto`）。
+ * **クラスは残してある**: 写真が届くまで／読み込みに失敗したときに、
+ * 面の明度が動かないため。filter は使わない（sticky を殺す）。
+ */
+.sample-kado .kado-shot-1 {
+  background-color: #cfd0cb;
+  background-image:
+    radial-gradient(70% 55% at 22% 12%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(155deg, #dcdcd6 0%, #c3c5bf 48%, #a8aaa4 100%);
+}
+.sample-kado .kado-shot-2 {
+  background-color: #b8a9a4;
+  background-image:
+    radial-gradient(60% 50% at 78% 18%, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 62%),
+    linear-gradient(165deg, #cbbdb6 0%, #ad9a93 55%, #8d7a74 100%);
+}
+.sample-kado .kado-shot-3 {
+  background-color: #c6c8c6;
+  background-image:
+    radial-gradient(65% 55% at 30% 10%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 58%),
+    linear-gradient(150deg, #dcdedb 0%, #c2c5c2 52%, #a6aaa8 100%);
+}
